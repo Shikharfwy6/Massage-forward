@@ -1,3 +1,11 @@
+# --- PYTHON 3.11+ / 3.14 LOOP BUG FIX (SABSE TOP PAR RAKHEIN) ---
+import asyncio
+try:
+    asyncio.get_running_loop()
+except RuntimeError:
+    asyncio.set_event_loop(asyncio.new_event_loop())
+# -----------------------------------------------------------------
+
 import os
 import logging
 from pyrogram import Client, filters
@@ -10,7 +18,7 @@ API_ID = int(os.getenv("API_ID"))
 API_HASH = os.getenv("API_HASH")
 SESSION_STRING = os.getenv("SESSION_STRING")
 SOURCE_CHAT = os.getenv("SOURCE_CHAT")
-TARGET_CHAT = os.getenv("TARGET_CHAT")  # Yaha par us BOT ka username aayega (E.g., @Complete_Bot_Username)
+TARGET_CHAT = os.getenv("TARGET_CHAT")
 
 def parse_chat(chat_str):
     if not chat_str:
@@ -37,9 +45,6 @@ app = Client(
 @app.on_message(filters.chat(SRC))
 async def forward_messages(client: Client, message: Message):
     try:
-        # Note: Kuch bots forward tag wale messages accept nahi karte (unhe lagta hai spam hai).
-        # Isliye hum 'message.forward' ki jagah 'message.copy' use kar rahe hain.
-        # Ye samne wale bot ko aisa lagega jaise aapne text khud type karke bheja hai.
         await message.copy(TG_CHAT)
         logging.info(f"Message successfully sent to bot! ID: {message.id}")
     except Exception as e:
@@ -48,4 +53,3 @@ async def forward_messages(client: Client, message: Message):
 if __name__ == "__main__":
     print("Userbot Bot-Forwarding ke liye Render par start ho raha hai...")
     app.run()
-  
