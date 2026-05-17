@@ -1,5 +1,4 @@
 # CRITICAL: Yeh 6 lines code me bilkul sabse upar (Line 1) honi chahiye.
-# Pyrogram import hone se pehle loop initialize hona zaroori hai.
 import asyncio
 try:
     asyncio.get_running_loop()
@@ -11,8 +10,6 @@ import os
 import logging
 from threading import Thread
 from flask import Flask
-
-# Pyrogram ko Flask aur loop setup ke BAAD import kar rahe hain
 from pyrogram import Client, filters
 from pyrogram.types import Message
 
@@ -22,7 +19,7 @@ logging.basicConfig(level=logging.INFO)
 API_ID = int(os.getenv("API_ID"))
 API_HASH = os.getenv("API_HASH")
 SESSION_STRING = os.getenv("SESSION_STRING")
-SOURCE_CHAT = os.getenv("SOURCE_CHAT")
+SOURCE_CHATS_RAW = os.getenv("SOURCE_CHAT") # Ab isme multiple channels honge comma se separate
 TARGET_CHAT = os.getenv("TARGET_CHAT")
 
 def parse_chat(chat_str):
@@ -36,8 +33,18 @@ def parse_chat(chat_str):
     except ValueError:
         return chat_str
 
-SRC = parse_chat(SOURCE_CHAT)
+# Multiple channels ko handle karne ke liye logic
+SRC_LIST = []
+if SOURCE_CHATS_RAW:
+    # Comma se split karke har channel ko clean aur parse karega
+    for chat in SOURCE_CHATS_RAW.split(","):
+        parsed = parse_chat(chat)
+        if parsed:
+            SRC_LIST.append(parsed)
+
 TG_CHAT = parse_chat(TARGET_CHAT)
+
+print(f"Monitoring channels: {SRC_LIST}")
 
 # --- PYROGRAM CLIENT ---
 app = Client(
@@ -48,11 +55,12 @@ app = Client(
     ipv6=False
 )
 
-@app.on_message(filters.chat(SRC))
+# filters.chat(SRC_LIST) ab puri list ko ek sath monitor karega
+@app.on_message(filters.chat(SRC_LIST))
 async def forward_messages(client: Client, message: Message):
     try:
         await message.copy(TG_CHAT)
-        logging.info(f"Message copied! ID: {message.id}")
+        logging.info(f"Message copied from {message.chat.title or message.chat.id}! ID: {message.id}")
     except Exception as e:
         logging.error(f"Forward error: {e}")
 
@@ -61,7 +69,7 @@ flask_app = Flask('')
 
 @flask_app.route('/')
 def home():
-    return "Bot is Live and Active!"
+    return "Multi-Channel Forwarder Bot is Live!"
 
 @flask_app.route('/webhook', methods=['GET', 'POST'])
 def webhook():
@@ -71,18 +79,15 @@ def run_flask():
     port = int(os.environ.get("PORT", 8080))
     flask_app.run(host='0.0.0.0', port=port)
 
-# Flask ko alag thread me chalayenge taaki port binding fast ho
 Thread(target=run_flask, daemon=True).start()
-print("Flask server started to bypass Render port scan.")
 
 async def start_bot():
     await app.start()
-    logging.info("Pyrogram Userbot Started successfully!")
+    logging.info("Pyrogram Multi-Channel Userbot Started successfully!")
     while True:
         await asyncio.sleep(3600)
 
 if __name__ == "__main__":
-    # Jo loop humne upar create kiya tha, usi me bot task run karenge
     main_loop = asyncio.get_event_loop()
     main_loop.create_task(start_bot())
     main_loop.run_forever()
