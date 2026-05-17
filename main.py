@@ -1,7 +1,18 @@
+# CRITICAL: Yeh 6 lines code me bilkul sabse upar (Line 1) honi chahiye.
+# Pyrogram import hone se pehle loop initialize hona zaroori hai.
+import asyncio
+try:
+    asyncio.get_running_loop()
+except RuntimeError:
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+
 import os
 import logging
-import asyncio
-from flask import Flask, request
+from threading import Thread
+from flask import Flask
+
+# Pyrogram ko Flask aur loop setup ke BAAD import kar rahe hain
 from pyrogram import Client, filters
 from pyrogram.types import Message
 
@@ -45,29 +56,33 @@ async def forward_messages(client: Client, message: Message):
     except Exception as e:
         logging.error(f"Forward error: {e}")
 
-# --- FLASK SERVER & LIFECYCLE ---
+# --- FLASK SERVER ---
 flask_app = Flask('')
 
 @flask_app.route('/')
 def home():
     return "Bot is Live and Active!"
 
-# Render jab ping karega toh ye route confirm karega ki bot chal raha hai
-@flask_app.route('/webhook', map_options=dict(strict_slashes=False))
+@flask_app.route('/webhook', methods=['GET', 'POST'])
 def webhook():
     return "OK", 200
+
+def run_flask():
+    port = int(os.environ.get("PORT", 8080))
+    flask_app.run(host='0.0.0.0', port=port)
+
+# Flask ko alag thread me chalayenge taaki port binding fast ho
+Thread(target=run_flask, daemon=True).start()
+print("Flask server started to bypass Render port scan.")
 
 async def start_bot():
     await app.start()
     logging.info("Pyrogram Userbot Started successfully!")
-    # Keep alive loop inside async task
     while True:
         await asyncio.sleep(3600)
 
 if __name__ == "__main__":
-    # Pyrogram ko background thread/loop me start karna aur flask ko main thread me run karna
-    loop = asyncio.get_event_loop()
-    loop.create_task(start_bot())
-    
-    port = int(os.environ.get("PORT", 8080))
-    flask_app.run(host='0.0.0.0', port=port)
+    # Jo loop humne upar create kiya tha, usi me bot task run karenge
+    main_loop = asyncio.get_event_loop()
+    main_loop.create_task(start_bot())
+    main_loop.run_forever()
