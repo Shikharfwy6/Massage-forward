@@ -1,4 +1,5 @@
-# --- PYTHON LOOP BUG FIX (LINE 1) ---
+# CRITICAL: Yeh 6 lines code me bilkul sabse upar (Line 1) honi chahiye.
+# Pyrogram import hone se pehle loop initialize hona zaroori hai.
 import asyncio
 try:
     asyncio.get_running_loop()
@@ -10,12 +11,14 @@ import os
 import logging
 from threading import Thread
 from flask import Flask
+
+# Pyrogram ko Flask aur loop setup ke BAAD import kar rahe hain
 from pyrogram import Client, filters
 from pyrogram.types import Message
-from pyrogram.raw.functions.channels import GetChannels
 
 logging.basicConfig(level=logging.INFO)
 
+# --- CONFIGURATION ---
 API_ID = int(os.getenv("API_ID"))
 API_HASH = os.getenv("API_HASH")
 SESSION_STRING = os.getenv("SESSION_STRING")
@@ -45,22 +48,20 @@ app = Client(
     ipv6=False
 )
 
-# Sirf hamare specific source chat ke messages ko capture karega
 @app.on_message(filters.chat(SRC))
 async def forward_messages(client: Client, message: Message):
     try:
-        # Message direct target par copy hoga
         await message.copy(TG_CHAT)
-        logging.info(f"🎉 Message successfully copied! ID: {message.id}")
+        logging.info(f"Message copied! ID: {message.id}")
     except Exception as e:
-        logging.error(f"⚠️ Forwarding failed for message ID {message.id}: {e}")
+        logging.error(f"Forward error: {e}")
 
 # --- FLASK SERVER ---
 flask_app = Flask('')
 
 @flask_app.route('/')
 def home():
-    return "Forwarder Bot is perfectly Live!"
+    return "Bot is Live and Active!"
 
 @flask_app.route('/webhook', methods=['GET', 'POST'])
 def webhook():
@@ -70,36 +71,18 @@ def run_flask():
     port = int(os.environ.get("PORT", 8080))
     flask_app.run(host='0.0.0.0', port=port)
 
+# Flask ko alag thread me chalayenge taaki port binding fast ho
 Thread(target=run_flask, daemon=True).start()
+print("Flask server started to bypass Render port scan.")
 
 async def start_bot():
-    try:
-        await app.start()
-        logging.info("🚀 Userbot connected to Telegram successfully!")
-        
-        # Core Peer Resolution Fix: Startup par hi chats ko database me force cache karna
-        logging.info("🔄 Syncing Source and Target chats...")
-        try:
-            src_peer = await app.resolve_peer(SRC)
-            logging.info(f"✅ Source Chat Synced successfully.")
-        except Exception as e:
-            logging.error(f"❌ Could not resolve Source Chat ({SRC}). Make sure username is correct and joined: {e}")
-            
-        try:
-            target_peer = await app.resolve_peer(TG_CHAT)
-            logging.info(f"✅ Target Chat Synced successfully.")
-        except Exception as e:
-            logging.error(f"❌ Could not resolve Target Chat ({TG_CHAT}). Make sure your account has started/joined it: {e}")
-
-        logging.info("🟢 Everything is ready. Bot is listening for new messages...")
-        
-    except Exception as init_err:
-        logging.error(f"❌ Critical Bot Initialization Error: {init_err}")
-        
+    await app.start()
+    logging.info("Pyrogram Userbot Started successfully!")
     while True:
         await asyncio.sleep(3600)
 
 if __name__ == "__main__":
+    # Jo loop humne upar create kiya tha, usi me bot task run karenge
     main_loop = asyncio.get_event_loop()
     main_loop.create_task(start_bot())
     main_loop.run_forever()
