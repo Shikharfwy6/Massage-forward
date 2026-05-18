@@ -75,9 +75,24 @@ def run_flask():
 Thread(target=run_flask, daemon=True).start()
 print("Flask server started to bypass Render port scan.")
 
+# --- AUTOMATIC FIX FIXED FUNCTION ---
 async def start_bot():
     await app.start()
     logging.info("Pyrogram Userbot Started successfully!")
+    
+    # Automatic Peer Resolution: Dono chats ko system me force-cache kar rahe hain
+    logging.info("Dono chats ko automatic resolve/cache kiya jaa raha hai...")
+    try:
+        if SRC:
+            await app.get_chat(SRC)
+            logging.info(f"Source Chat ({SRC}) successfully cached!")
+        if TG_CHAT:
+            await app.get_chat(TG_CHAT)
+            logging.info(f"Target Chat ({TG_CHAT}) successfully cached!")
+        logging.info("Peer resolution complete! Ab koi Peer id invalid error nahi aayegi.")
+    except Exception as e:
+        logging.error(f"Chats cache karne me error (Yeh tab hota hai jab bot account us chat me joined na ho): {e}")
+
     while True:
         await asyncio.sleep(3600)
 
