@@ -1,4 +1,4 @@
-# --- PYTHON LOOP BUG FIX ---
+# --- PYTHON LOOP BUG FIX (LINE 1) ---
 import asyncio
 try:
     asyncio.get_running_loop()
@@ -12,6 +12,7 @@ from threading import Thread
 from flask import Flask
 from pyrogram import Client, filters
 from pyrogram.types import Message
+from pyrogram.raw.functions.channels import GetChannels
 
 logging.basicConfig(level=logging.INFO)
 
@@ -35,6 +36,7 @@ def parse_chat(chat_str):
 SRC = parse_chat(SOURCE_CHAT)
 TG_CHAT = parse_chat(TARGET_CHAT)
 
+# --- PYROGRAM CLIENT ---
 app = Client(
     "forwarder_userbot", 
     api_id=API_ID, 
@@ -43,23 +45,22 @@ app = Client(
     ipv6=False
 )
 
-# Global error handler lagaya hai taaki invalid peer par bot stop na ho
+# Sirf hamare specific source chat ke messages ko capture karega
 @app.on_message(filters.chat(SRC))
 async def forward_messages(client: Client, message: Message):
     try:
-        # Message ko send karne ki koshish
+        # Message direct target par copy hoga
         await message.copy(TG_CHAT)
-        logging.info(f"Message copied successfully! ID: {message.id}")
+        logging.info(f"🎉 Message successfully copied! ID: {message.id}")
     except Exception as e:
-        # Agar peer invalid ya koi aur issue aayega toh yahan log hoga, bot chalta rahega
-        logging.error(f"Skipping message due to error: {e}")
+        logging.error(f"⚠️ Forwarding failed for message ID {message.id}: {e}")
 
 # --- FLASK SERVER ---
 flask_app = Flask('')
 
 @flask_app.route('/')
 def home():
-    return "Forwarder Bot is Active!"
+    return "Forwarder Bot is perfectly Live!"
 
 @flask_app.route('/webhook', methods=['GET', 'POST'])
 def webhook():
@@ -74,17 +75,26 @@ Thread(target=run_flask, daemon=True).start()
 async def start_bot():
     try:
         await app.start()
-        logging.info("Pyrogram Userbot Connected Successfully!")
+        logging.info("🚀 Userbot connected to Telegram successfully!")
         
-        # Ek baar target chat ko sync kar lete hain taaki ID register ho jaye
+        # Core Peer Resolution Fix: Startup par hi chats ko database me force cache karna
+        logging.info("🔄 Syncing Source and Target chats...")
         try:
-            await app.get_chat(TG_CHAT)
-            logging.info("Target chat successfully verified and synced!")
+            src_peer = await app.resolve_peer(SRC)
+            logging.info(f"✅ Source Chat Synced successfully.")
         except Exception as e:
-            logging.warning(f"Target chat sync warning: {e}. Make sure your account joined/started the target!")
+            logging.error(f"❌ Could not resolve Source Chat ({SRC}). Make sure username is correct and joined: {e}")
             
+        try:
+            target_peer = await app.resolve_peer(TG_CHAT)
+            logging.info(f"✅ Target Chat Synced successfully.")
+        except Exception as e:
+            logging.error(f"❌ Could not resolve Target Chat ({TG_CHAT}). Make sure your account has started/joined it: {e}")
+
+        logging.info("🟢 Everything is ready. Bot is listening for new messages...")
+        
     except Exception as init_err:
-        logging.error(f"Bot start error: {init_err}")
+        logging.error(f"❌ Critical Bot Initialization Error: {init_err}")
         
     while True:
         await asyncio.sleep(3600)
