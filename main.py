@@ -1,4 +1,4 @@
-# CRITICAL: Yeh 6 lines code me bilkul sabse upar (Line 1) honi chahiye.
+# --- PYTHON LOOP BUG FIX ---
 import asyncio
 try:
     asyncio.get_running_loop()
@@ -15,11 +15,10 @@ from pyrogram.types import Message
 
 logging.basicConfig(level=logging.INFO)
 
-# --- CONFIGURATION ---
 API_ID = int(os.getenv("API_ID"))
 API_HASH = os.getenv("API_HASH")
 SESSION_STRING = os.getenv("SESSION_STRING")
-SOURCE_CHATS_RAW = os.getenv("SOURCE_CHAT") # Ab isme multiple channels honge comma se separate
+SOURCE_CHAT = os.getenv("SOURCE_CHAT")
 TARGET_CHAT = os.getenv("TARGET_CHAT")
 
 def parse_chat(chat_str):
@@ -33,20 +32,9 @@ def parse_chat(chat_str):
     except ValueError:
         return chat_str
 
-# Multiple channels ko handle karne ke liye logic
-SRC_LIST = []
-if SOURCE_CHATS_RAW:
-    # Comma se split karke har channel ko clean aur parse karega
-    for chat in SOURCE_CHATS_RAW.split(","):
-        parsed = parse_chat(chat)
-        if parsed:
-            SRC_LIST.append(parsed)
-
+SRC = parse_chat(SOURCE_CHAT)
 TG_CHAT = parse_chat(TARGET_CHAT)
 
-print(f"Monitoring channels: {SRC_LIST}")
-
-# --- PYROGRAM CLIENT ---
 app = Client(
     "forwarder_userbot", 
     api_id=API_ID, 
@@ -55,21 +43,23 @@ app = Client(
     ipv6=False
 )
 
-# filters.chat(SRC_LIST) ab puri list ko ek sath monitor karega
-@app.on_message(filters.chat(SRC_LIST))
+# Global error handler lagaya hai taaki invalid peer par bot stop na ho
+@app.on_message(filters.chat(SRC))
 async def forward_messages(client: Client, message: Message):
     try:
+        # Message ko send karne ki koshish
         await message.copy(TG_CHAT)
-        logging.info(f"Message copied from {message.chat.title or message.chat.id}! ID: {message.id}")
+        logging.info(f"Message copied successfully! ID: {message.id}")
     except Exception as e:
-        logging.error(f"Forward error: {e}")
+        # Agar peer invalid ya koi aur issue aayega toh yahan log hoga, bot chalta rahega
+        logging.error(f"Skipping message due to error: {e}")
 
 # --- FLASK SERVER ---
 flask_app = Flask('')
 
 @flask_app.route('/')
 def home():
-    return "Multi-Channel Forwarder Bot is Live!"
+    return "Forwarder Bot is Active!"
 
 @flask_app.route('/webhook', methods=['GET', 'POST'])
 def webhook():
@@ -82,8 +72,20 @@ def run_flask():
 Thread(target=run_flask, daemon=True).start()
 
 async def start_bot():
-    await app.start()
-    logging.info("Pyrogram Multi-Channel Userbot Started successfully!")
+    try:
+        await app.start()
+        logging.info("Pyrogram Userbot Connected Successfully!")
+        
+        # Ek baar target chat ko sync kar lete hain taaki ID register ho jaye
+        try:
+            await app.get_chat(TG_CHAT)
+            logging.info("Target chat successfully verified and synced!")
+        except Exception as e:
+            logging.warning(f"Target chat sync warning: {e}. Make sure your account joined/started the target!")
+            
+    except Exception as init_err:
+        logging.error(f"Bot start error: {init_err}")
+        
     while True:
         await asyncio.sleep(3600)
 
